@@ -2115,7 +2115,7 @@ public class LenientSequenceFile {
 
         if(dataBufferLength+in.getPos()>end) {
           dataBufferLength=(int)(end-in.getPos());
-          LOG.info("Detected truncated file: "+filename+", Shortened read buffer");
+          LOG.warn("Detected truncated file: "+filename+", Shortened read buffer");
         }
 
         dataBuffer.write(in, dataBufferLength);
