@@ -28,6 +28,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.util.ReflectionUtils;
+import java.io.EOFException;
 
 import stewi.LenientSequenceFile;
 
@@ -83,7 +84,11 @@ public class LenientSequenceFileRecordReader<K, V> implements RecordReader<K, V>
     long pos = in.getPosition();
     boolean remaining = (in.next(key) != null);
     if (remaining) {
-      getCurrentValue(value);
+      try {
+        getCurrentValue(value);
+      } catch (EOFException e) {
+        return false;
+      }
     }
     if (pos >= end && in.syncSeen()) {
       more = false;
