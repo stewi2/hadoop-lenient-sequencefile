@@ -2113,10 +2113,10 @@ public class LenientSequenceFile {
       try {
         int dataBufferLength = WritableUtils.readVInt(in);
 
-        if(dataBufferLength+in.getPos()>end) {
-          dataBufferLength=(int)(end-in.getPos());
-          LOG.warn("Detected truncated file: "+filename+", Shortened read buffer");
-        }
+//        if(dataBufferLength+in.getPos()>end) {
+//          LOG.warn("Shortened truncated buffer (" + (dataBufferLength+in.getPos()) + ">" + end + ")");
+//          dataBufferLength=(int)(end-in.getPos());
+//        }
 
         dataBuffer.write(in, dataBufferLength);
 
@@ -2151,7 +2151,8 @@ public class LenientSequenceFile {
           throw new IOException("File is corrupt!");
       }
       syncSeen = true;
-
+      long blockpos = in.getPos();
+      
       // Read number of records in this block
       noBufferedRecords = WritableUtils.readVInt(in);
 
@@ -2167,6 +2168,15 @@ public class LenientSequenceFile {
         noBufferedValues = noBufferedRecords;
         valuesDecompressed = true;
       }
+
+      System.err.printf("offset=%-8d keylenbuf=%d vallenbuf=%d keybuf=%d valbuf=%d keys=%d records=%d values=%d\n",
+              blockpos,
+              keyLenBuffer.getLength(),
+              valLenBuffer.getLength(),
+              keyBuffer.getLength(),
+              valBuffer.getLength(),
+              noBufferedKeys, noBufferedRecords, noBufferedValues);
+
     }
 
     /**
