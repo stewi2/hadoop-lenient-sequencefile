@@ -1640,7 +1640,7 @@ public class LenientSequenceFile {
     private Configuration conf;
 
     private int noBufferedRecords = 0;
-    private boolean lazyDecompress = true;
+    private boolean lazyDecompress = false;
     private boolean valuesDecompressed = true;
 
     private int noBufferedKeys = 0;
