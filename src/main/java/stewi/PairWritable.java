@@ -11,6 +11,8 @@ class PairWritable implements Writable {
     private LongWritable key = new LongWritable();
     private Text value = new Text();
 
+    public PairWritable() {}
+
     public PairWritable(LongWritable key, Text value) {
         this.key.set(key.get());
         this.value.set(value);

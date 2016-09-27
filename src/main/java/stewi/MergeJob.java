@@ -26,7 +26,7 @@ import stewi.mapred.LenientSequenceFileInputFormat;
 
 public class MergeJob extends Configured implements Tool {
 
-    class MergeMapper extends MapReduceBase implements Mapper<LongWritable, Text, MD5Hash, PairWritable> {
+    public static class MergeMapper extends MapReduceBase implements Mapper<LongWritable, Text, MD5Hash, PairWritable> {
         @Override
         public void map(LongWritable key, Text value, OutputCollector<MD5Hash, PairWritable> output, Reporter reporter)
                 throws IOException {
@@ -36,7 +36,7 @@ public class MergeJob extends Configured implements Tool {
         }
     }
 
-    class MergeReducer extends MapReduceBase implements Reducer<MD5Hash, PairWritable, LongWritable, Text> {
+    public static class MergeReducer extends MapReduceBase implements Reducer<MD5Hash, PairWritable, LongWritable, Text> {
         @Override
         public void reduce(MD5Hash key, Iterator<PairWritable> values, OutputCollector<LongWritable, Text> output,
                 Reporter reporter) throws IOException {
@@ -47,7 +47,7 @@ public class MergeJob extends Configured implements Tool {
 
     @Override
     public int run(String[] args) throws Exception {
-        if(args.length != 3) {
+        if(args.length != 2) {
             System.err.println("Usage : File Merge <input path> <output path>");
             System.exit(-1);
         }
@@ -59,8 +59,8 @@ public class MergeJob extends Configured implements Tool {
         JobConf job = new JobConf(conf, MergeJob.class);
 
         // Process custom command-line options
-        Path in = new Path(args[1]);
-        Path out = new Path(args[2]);
+        Path in = new Path(args[0]);
+        Path out = new Path(args[0]);
 
         // Specify various job-specific parameters
         job.setJobName("Merge "+args[0]+" "+args[1]);
@@ -69,14 +69,16 @@ public class MergeJob extends Configured implements Tool {
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
         job.setMapperClass(MergeJob.MergeMapper.class);
-        job.setCombinerClass(MergeJob.MergeReducer.class); 
         job.setReducerClass(MergeJob.MergeReducer.class);
 
         job.setInputFormat(LenientSequenceFileInputFormat.class);
         job.setOutputFormat(SequenceFileOutputFormat.class);
 
+        job.setMapOutputKeyClass(MD5Hash.class);
+        job.setMapOutputValueClass(PairWritable.class);
         job.setOutputKeyClass(LongWritable.class);
         job.setOutputValueClass(Text.class);
+
         job.setNumReduceTasks(4);
 
         // Submit the job, then poll for progress until the job is complete
