@@ -19,6 +19,7 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.mapred.lib.LazyOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
@@ -64,6 +65,8 @@ public class MergeJob extends Configured implements Tool {
 
         // Specify various job-specific parameters
         job.setJobName("Merge "+args[0]+" "+args[1]);
+        job.setBoolean("mapreduce.fileoutputcommitter.marksuccessfuljobs", false);
+        job.set("mapreduce.output.basename", "help_center");
 
         FileInputFormat.addInputPath(job, new Path(args[0]) );
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
@@ -72,7 +75,7 @@ public class MergeJob extends Configured implements Tool {
         job.setReducerClass(MergeJob.MergeReducer.class);
 
         job.setInputFormat(LenientSequenceFileInputFormat.class);
-        job.setOutputFormat(SequenceFileOutputFormat.class);
+        MergeJobOutputFormat.setOutputFormatClass(job, MergeJobOutputFormat.class);
 
         job.setMapOutputKeyClass(MD5Hash.class);
         job.setMapOutputValueClass(PairWritable.class);
@@ -83,6 +86,7 @@ public class MergeJob extends Configured implements Tool {
 
         // Submit the job, then poll for progress until the job is complete
         JobClient.runJob(job);
+
         return 0;
       }
 
