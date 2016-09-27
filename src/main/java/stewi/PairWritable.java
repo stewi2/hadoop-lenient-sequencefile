@@ -8,12 +8,12 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 class PairWritable implements Writable {
-    private LongWritable key;
-    private Text value;
+    private LongWritable key = new LongWritable();
+    private Text value = new Text();
 
     public PairWritable(LongWritable key, Text value) {
-        this.key = key;
-        this.value = value;
+        this.key.set(key.get());
+        this.value.set(value);
     }
 
     public LongWritable getKey() {
@@ -30,14 +30,8 @@ class PairWritable implements Writable {
     }
 
     public void readFields(DataInput in) throws IOException {
-        key = LongWritable.read(in);
-        value = Text.read(in);
-    }
-
-    public static PairWritable read(DataInput in) throws IOException {
-        PairWritable w = new PairWritable();
-        w.readFields(in);
-        return w;
+        key.readFields(in);
+        value.readFields(in);
     }
 }
 
