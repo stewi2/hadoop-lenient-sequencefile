@@ -75,7 +75,7 @@ public class MergeJob extends Configured implements Tool {
         job.setReducerClass(MergeJob.MergeReducer.class);
 
         job.setInputFormat(LenientSequenceFileInputFormat.class);
-        MergeJobOutputFormat.setOutputFormatClass(job, MergeJobOutputFormat.class);
+        MergeJobOutputFormat.setOutputFormatClass(job, SequenceFileOutputFormat.class);
 
         job.setMapOutputKeyClass(MD5Hash.class);
         job.setMapOutputValueClass(PairWritable.class);
