@@ -126,7 +126,8 @@ public class MergeJob extends Configured implements Tool {
             }
         }
 
-        int n_reducers = (int)(size / (1024*1024*1024));
+        long bytes_per_reducer = conf.getInt("mergejob.mb-per-reducer", 128) * 1024 * 1024;
+        int n_reducers = (int)(size / bytes_per_reducer);
         System.out.printf("Input Size = %.2fMB\n", (float)size/1024/1024);
         System.out.printf("n_reducers = %d\n", n_reducers);
         job.setNumReduceTasks(n_reducers);
