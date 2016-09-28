@@ -1,6 +1,7 @@
 package stewi;
 
 import java.io.IOException;
+import java.util.Calendar;
 import java.util.Iterator;
 
 import org.apache.hadoop.conf.Configuration;
@@ -16,9 +17,9 @@ import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.JobStatus;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.Partitioner;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
@@ -33,6 +34,15 @@ import stewi.mapred.LenientSequenceFileInputFormat;
 
 public class MergeJob extends Configured implements Tool {
 
+    public static class TimeOfDayBasedPartitioner<V> extends MapReduceBase implements Partitioner<LongWritable, V> {
+        @Override
+        public int getPartition(LongWritable key, V value, int numPartitions) {
+            Calendar cal = Calendar.getInstance();
+            cal.setTimeInMillis(key.get());
+            return cal.get(Calendar.SECOND) % numPartitions;
+        }
+    }
+
     public static class MergeReducer extends MapReduceBase implements Reducer<LongWritable, Text, LongWritable, Text> {
 
         Configuration conf;
@@ -45,7 +55,7 @@ public class MergeJob extends Configured implements Tool {
         @Override
         public void reduce(LongWritable key, Iterator<Text> values, OutputCollector<LongWritable, Text> output,
                 Reporter reporter) throws IOException {
-            int n_keys = conf.getInt("mergejob.bloom.size", 1024 * 1024);
+            int n_keys = conf.getInt("mergejob.bloom.size", 10000);
             // Copied from BloomMapFile.java:
             // vector size should be <code>-kn / (ln(1 - c^(1/k)))</code> bits for
             // single key, where <code> is the number of hash functions,
@@ -71,15 +81,6 @@ public class MergeJob extends Configured implements Tool {
         }
     }
 
-    /*
-    private long size(Path path, FileSystem fs) {
-        if(fs.isDirectory(path)) {
-            for(FileStatus status: path.) {
-                size += status.getLen();
-            }
-        }
-    }
-*/
     @Override
     public int run(String[] args) throws Exception {
         if(args.length != 2) {
@@ -106,6 +107,7 @@ public class MergeJob extends Configured implements Tool {
         FileOutputFormat.setOutputPath(job, out);
 
         job.setReducerClass(MergeJob.MergeReducer.class);
+        job.setPartitionerClass(TimeOfDayBasedPartitioner.class);
 
         job.setInputFormat(LenientSequenceFileInputFormat.class);
         MergeJobOutputFormat.setOutputFormatClass(job, SequenceFileOutputFormat.class);
