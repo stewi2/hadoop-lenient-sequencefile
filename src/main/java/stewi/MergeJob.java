@@ -6,7 +6,11 @@ import java.util.Iterator;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.MD5Hash;
@@ -73,6 +77,15 @@ public class MergeJob extends Configured implements Tool {
         }
     }
 
+    /*
+    private long size(Path path, FileSystem fs) {
+        if(fs.isDirectory(path)) {
+            for(FileStatus status: path.) {
+                size += status.getLen();
+            }
+        }
+    }
+*/
     @Override
     public int run(String[] args) throws Exception {
         if(args.length != 2) {
@@ -107,10 +120,19 @@ public class MergeJob extends Configured implements Tool {
         job.setOutputValueClass(Text.class);
 
         long size = 0;
-        for(FileStatus status: in.getFileSystem(conf).globStatus(in)) {
-            size += status.getLen();
+
+        FileSystem fs = in.getFileSystem(conf);
+        for(FileStatus glob: in.getFileSystem(conf).globStatus(in)) {
+            RemoteIterator<LocatedFileStatus> fileStatusListIterator = fs.listFiles(glob.getPath(), true);
+            while(fileStatusListIterator.hasNext()) {
+                LocatedFileStatus status = fileStatusListIterator.next();
+                size += status.getLen();
+            }
         }
-        job.setNumReduceTasks((int)(size / (1024*1024*1024)));
+
+        int n_reducers = (int)(size / (1024*1024*1024));
+        System.out.printf("Input Size = %.2fMB\n", (float)size/1024/1024);
+        job.setNumReduceTasks(n_reducers);
 
         // Submit the job, then poll for progress until the job is complete
         JobClient.runJob(job);
