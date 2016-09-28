@@ -5,6 +5,7 @@ import java.util.Iterator;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -87,15 +88,15 @@ public class MergeJob extends Configured implements Tool {
 
         // Process custom command-line options
         Path in = new Path(args[0]);
-        Path out = new Path(args[0]);
+        Path out = new Path(args[1]);
 
         // Specify various job-specific parameters
         job.setJobName("Merge "+args[0]+" "+args[1]);
         job.setBoolean("mapreduce.fileoutputcommitter.marksuccessfuljobs", false);
         job.set("mapreduce.output.basename", "help_center");
 
-        FileInputFormat.addInputPath(job, new Path(args[0]) );
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        FileInputFormat.addInputPath(job, in);
+        FileOutputFormat.setOutputPath(job, out);
 
         job.setReducerClass(MergeJob.MergeReducer.class);
 
@@ -105,7 +106,11 @@ public class MergeJob extends Configured implements Tool {
         job.setOutputKeyClass(LongWritable.class);
         job.setOutputValueClass(Text.class);
 
-        job.setNumReduceTasks(4);
+        long size = 0;
+        for(FileStatus status: in.getFileSystem(conf).globStatus(in)) {
+            size += status.getLen();
+        }
+        job.setNumReduceTasks((int)(size / (1024*1024*1024)));
 
         // Submit the job, then poll for progress until the job is complete
         JobClient.runJob(job);
