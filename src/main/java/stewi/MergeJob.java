@@ -39,7 +39,8 @@ public class MergeJob extends Configured implements Tool {
         public int getPartition(LongWritable key, V value, int numPartitions) {
             Calendar cal = Calendar.getInstance();
             cal.setTimeInMillis(key.get());
-            return cal.get(Calendar.SECOND) % numPartitions;
+            int second = cal.get(Calendar.HOUR_OF_DAY) * 3600 + cal.get(Calendar.SECOND);
+            return (int)(Math.floor((float)second/86400 * numPartitions));  
         }
     }
 
