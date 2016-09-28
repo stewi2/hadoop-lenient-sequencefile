@@ -132,6 +132,7 @@ public class MergeJob extends Configured implements Tool {
 
         int n_reducers = (int)(size / (1024*1024*1024));
         System.out.printf("Input Size = %.2fMB\n", (float)size/1024/1024);
+        System.out.printf("n_reducers = %d\n", n_reducers);
         job.setNumReduceTasks(n_reducers);
 
         // Submit the job, then poll for progress until the job is complete
