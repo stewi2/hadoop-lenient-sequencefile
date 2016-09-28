@@ -16,6 +16,7 @@ import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.JobStatus;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
@@ -136,7 +137,10 @@ public class MergeJob extends Configured implements Tool {
             @Override
             public void run() {
                 try {
-                    rj.killJob();
+                    if(!rj.getJobStatus().isJobComplete()) {
+                        System.out.println("Killing the job because of JVM shutdown");
+                        rj.killJob();
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
