@@ -7,33 +7,26 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.MD5Hash;
-import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
-import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
-import org.apache.hadoop.mapred.lib.LazyOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.util.bloom.DynamicBloomFilter;
 import org.apache.hadoop.util.bloom.Key;
 import org.apache.hadoop.util.hash.Hash;
-
-import com.google.common.hash.BloomFilter;
 
 import stewi.mapred.LenientSequenceFileInputFormat;
 
@@ -136,9 +129,23 @@ public class MergeJob extends Configured implements Tool {
         job.setNumReduceTasks(n_reducers);
 
         // Submit the job, then poll for progress until the job is complete
-        JobClient.runJob(job);
+        JobClient jc = new JobClient(job);
+        final RunningJob rj = jc.submitJob(job);
 
-        return 0;
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                try {
+                    rj.killJob();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
+        boolean success = jc.monitorAndPrintJob(job, rj);
+
+        return success ? 0 : 1;
       }
 
       public static void main(String[] args) throws Exception {
