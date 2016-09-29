@@ -101,8 +101,8 @@ public class MergeJob extends Configured implements Tool {
 
     @Override
     public int run(String[] args) throws Exception {
-        if(args.length != 2) {
-            System.err.println("Usage : File Merge <input path> <output path>");
+        if(args.length != 1) {
+            System.err.println("Usage : File Merge <input path>");
             System.exit(-1);
         }
 
@@ -114,13 +114,20 @@ public class MergeJob extends Configured implements Tool {
 
         // Process custom command-line options
         Path in = new Path(args[0]);
-        Path out = new Path(args[1]);
+        Path tmpout = new Path(in, ".merge_tmp");
+
+        FileSystem fs = in.getFileSystem(conf);
+
+        if(fs.exists(tmpout)) {
+            System.out.println("Deleting old tmp directory");
+            fs.delete(tmpout,false);
+        }
 
         // Specify various job-specific parameters
-        job.setJobName("Merge "+args[0]+" "+args[1]);
+        job.setJobName("Merge "+in);
         job.setBoolean("mapreduce.fileoutputcommitter.marksuccessfuljobs", false);
 
-        FileOutputFormat.setOutputPath(job, out);
+        FileOutputFormat.setOutputPath(job, tmpout);
 
         job.setReducerClass(MergeJob.MergeReducer.class);
         job.setPartitionerClass(TimeOfDayBasedPartitioner.class);
@@ -133,9 +140,8 @@ public class MergeJob extends Configured implements Tool {
 
         long size = 0;
 
-        FileSystem fs = in.getFileSystem(conf);
         for(FileStatus glob: in.getFileSystem(conf).globStatus(in)) {
-            RemoteIterator<LocatedFileStatus> fileStatusListIterator = fs.listFiles(glob.getPath(), true);
+            RemoteIterator<LocatedFileStatus> fileStatusListIterator = fs.listFiles(glob.getPath(), false);
             while(fileStatusListIterator.hasNext()) {
                 LocatedFileStatus status = fileStatusListIterator.next();
                 size += status.getLen();
@@ -172,29 +178,36 @@ public class MergeJob extends Configured implements Tool {
 
         boolean success = jc.monitorAndPrintJob(job, rj);
 
-        System.out.println("Renaming old Files");
-        for(Path src: paths) {
-            Path dest = Path.mergePaths(src.getParent(), new Path("/.backup."+src.getName()));
-            System.out.println(src + " -> " + dest);
-            fs.rename(src, dest);
+        if(success) {
+            System.out.println("Backing up old Files");
+            Path backup = new Path(in, ".merge_backup");
+            fs.mkdirs(backup);
+            for(Path src: paths) {
+                Path dest = new Path(backup,src.getName());
+                System.out.println(src + " -> " + dest);
+                fs.rename(src, dest);
+            }
+    
+            System.out.println("Moving new files in place");
+    
+            Class<? extends CompressionCodec> codecClass = FileOutputFormat.getOutputCompressorClass(job,DefaultCodec.class);
+            CompressionCodec codec = ReflectionUtils.newInstance(codecClass, job);
+    
+            for(FileStatus status: fs.listStatus(tmpout)) {
+                Path src = status.getPath();
+                Path dest = new Path(in, new Path(String.format("/merged_help_center.%s.%s%s",
+                        rj.getID().toString().substring(4),
+                        src.getName().substring(5),
+                        codec.getDefaultExtension())));
+                System.out.println(src + " -> " + dest);
+                fs.rename(src, dest);
+            }
         }
 
-        System.out.println("Moving new files in place");
-
-        Class<? extends CompressionCodec> codecClass = FileOutputFormat.getOutputCompressorClass(job,DefaultCodec.class);
-        CompressionCodec codec = ReflectionUtils.newInstance(codecClass, job);
-
-        for(FileStatus status: fs.listStatus(out)) {
-            Path src = status.getPath();
-            Path dest = Path.mergePaths(in, new Path(String.format("/merged_help_center.%s.%s%s",
-                    rj.getID().toString().substring(4),
-                    src.getName().substring(5),
-                    codec.getDefaultExtension())));
-            System.out.println(src + " -> " + dest);
-            fs.rename(src, dest);
+        if(fs.exists(tmpout)) {
+            System.out.println("Deleting tmp directory");
+            fs.delete(tmpout,false);
         }
-
-
 /*
         for(TaskCompletionEvent event: rj.getTaskCompletionEvents(0)) {
             URL url = new URL(event.getTaskTrackerHttp() +
