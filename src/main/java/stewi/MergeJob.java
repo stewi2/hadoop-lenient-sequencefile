@@ -14,9 +14,12 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
+import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.JobClient;
+import org.apache.hadoop.mapred.JobClient.TaskStatusFilter;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
+import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
@@ -27,6 +30,7 @@ import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.util.bloom.DynamicBloomFilter;
 import org.apache.hadoop.util.bloom.Key;
 import org.apache.hadoop.util.hash.Hash;
+import org.apache.log4j.Logger;
 
 import stewi.mapred.LenientSequenceFileInputFormat;
 
@@ -34,6 +38,7 @@ public class MergeJob extends Configured implements Tool {
 
     public static class MergeReducer extends MapReduceBase implements Reducer<LongWritable, Text, LongWritable, Text> {
 
+        private Logger logger = Logger.getLogger(MergeReducer.class);
         Configuration conf;
 
         @Override
@@ -44,6 +49,28 @@ public class MergeJob extends Configured implements Tool {
         @Override
         public void reduce(LongWritable key, Iterator<Text> values, OutputCollector<LongWritable, Text> output,
                 Reporter reporter) throws IOException {
+            DynamicBloomFilter seen_rows = createBloomFilter();
+            DynamicBloomFilter duplicated_rows = createBloomFilter();
+
+            while(values.hasNext()) {
+                Text line = values.next();
+                Key filterkey = new Key(line.copyBytes());
+                if(!seen_rows.membershipTest(filterkey)) {
+                    output.collect(key,line);
+                    seen_rows.add(filterkey);
+                } else {
+                    reporter.incrCounter("mergejob","duplicate_count", 1);
+                    if(!duplicated_rows.membershipTest(filterkey)) {
+                        logger.debug("Found duplicated row: " + key.get() + "\t" + line.toString());
+                        reporter.incrCounter("mergejob", "duplicate_rows_count", 1);
+                        duplicated_rows.add(filterkey);
+                    }
+                    logger.debug("Dropping duplicate row: " + key.get() + "\t" + line.toString());
+                }
+            }
+        }
+
+        protected DynamicBloomFilter createBloomFilter() {
             int n_keys = conf.getInt("mergejob.bloom.size", 10000);
             // Copied from BloomMapFile.java:
             // vector size should be <code>-kn / (ln(1 - c^(1/k)))</code> bits for
@@ -58,15 +85,7 @@ public class MergeJob extends Configured implements Tool {
 
             DynamicBloomFilter filter = new DynamicBloomFilter(
                     vectorSize, hash_count, Hash.getHashType(conf), n_keys);
-
-            while(values.hasNext()) {
-                Text line = values.next();
-                Key filterkey = new Key(line.copyBytes());
-                if(!filter.membershipTest(filterkey)) {
-                    output.collect(key,line);
-                    filter.add(filterkey);
-                }
-            }
+            return filter;
         }
     }
 
@@ -92,7 +111,6 @@ public class MergeJob extends Configured implements Tool {
         job.setBoolean("mapreduce.fileoutputcommitter.marksuccessfuljobs", false);
         job.set("mapreduce.output.basename", "help_center");
 
-        FileInputFormat.addInputPath(job, in);
         FileOutputFormat.setOutputPath(job, out);
 
         job.setReducerClass(MergeJob.MergeReducer.class);
@@ -112,17 +130,22 @@ public class MergeJob extends Configured implements Tool {
             while(fileStatusListIterator.hasNext()) {
                 LocatedFileStatus status = fileStatusListIterator.next();
                 size += status.getLen();
+                FileInputFormat.addInputPath(job, status.getPath());
             }
         }
 
+        Path[] paths = FileInputFormat.getInputPaths(job);
+
         long bytes_per_reducer = conf.getInt("mergejob.mb-per-reducer", 128) * 1024 * 1024;
         int n_reducers = (int)Math.ceil((float)size / bytes_per_reducer);
-        System.out.printf("Input Size = %.2fMB\n", (float)size/1024/1024);
-        System.out.printf("n_reducers = %d\n", n_reducers);
+        System.out.printf("Merging %d input files of total size %.2fMB into %d output files.",
+                paths.length, (float)size/1024/1024, n_reducers);
         job.setNumReduceTasks(n_reducers);
 
         // Submit the job, then poll for progress until the job is complete
         JobClient jc = new JobClient(job);
+        jc.setTaskOutputFilter(job, TaskStatusFilter.ALL);
+
         final RunningJob rj = jc.submitJob(job);
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -141,6 +164,12 @@ public class MergeJob extends Configured implements Tool {
 
         boolean success = jc.monitorAndPrintJob(job, rj);
 
+        if(success) {
+            for(FileStatus status: fs.listStatus(out)) {
+                
+            }
+        }
+        
         return success ? 0 : 1;
       }
 
