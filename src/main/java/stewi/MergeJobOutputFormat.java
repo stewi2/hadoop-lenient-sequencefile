@@ -29,7 +29,7 @@ public class MergeJobOutputFormat<K, V> extends LazyOutputFormat<K, V> {
         if(name.startsWith("part")) {
             Class<? extends CompressionCodec> codecClass = FileOutputFormat.getOutputCompressorClass(job,DefaultCodec.class);
             CompressionCodec codec = ReflectionUtils.newInstance(codecClass, job);
-            name = "merged_help_center" + name.substring(4) + codec.getDefaultExtension();
+            name = ".merged_help_center" + name.substring(4) + codec.getDefaultExtension();
         }
         return super.getRecordWriter(ignored, job, name, progress);
     }
