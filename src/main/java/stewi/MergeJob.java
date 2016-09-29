@@ -1,7 +1,6 @@
 package stewi;
 
 import java.io.IOException;
-import java.util.Calendar;
 import java.util.Iterator;
 
 import org.apache.hadoop.conf.Configuration;
@@ -19,7 +18,6 @@ import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.OutputCollector;
-import org.apache.hadoop.mapred.Partitioner;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
@@ -33,16 +31,6 @@ import org.apache.hadoop.util.hash.Hash;
 import stewi.mapred.LenientSequenceFileInputFormat;
 
 public class MergeJob extends Configured implements Tool {
-
-    public static class TimeOfDayBasedPartitioner<V> extends MapReduceBase implements Partitioner<LongWritable, V> {
-        @Override
-        public int getPartition(LongWritable key, V value, int numPartitions) {
-            Calendar cal = Calendar.getInstance();
-            cal.setTimeInMillis(key.get());
-            int second = cal.get(Calendar.HOUR_OF_DAY) * 3600 + cal.get(Calendar.SECOND);
-            return (int)(Math.floor((float)second/86400 * numPartitions));  
-        }
-    }
 
     public static class MergeReducer extends MapReduceBase implements Reducer<LongWritable, Text, LongWritable, Text> {
 
