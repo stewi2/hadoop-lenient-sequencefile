@@ -119,6 +119,11 @@ public class MergeJob extends Configured implements Tool {
         FileSystem fs = in.getFileSystem(conf);
 
         if(fs.exists(tmpout)) {
+            System.out.println("Deleting old output directory");
+            fs.delete(tmpout,false);
+        }
+
+        if(fs.exists(tmpout)) {
             System.out.println("Deleting old tmp directory");
             fs.delete(tmpout,false);
         }
@@ -195,7 +200,7 @@ public class MergeJob extends Configured implements Tool {
     
             for(FileStatus status: fs.listStatus(tmpout)) {
                 Path src = status.getPath();
-                Path dest = new Path(in, new Path(String.format("/merged_help_center.%s.%s%s",
+                Path dest = new Path(in, new Path(String.format("merged_help_center.%s.%s%s",
                         rj.getID().toString().substring(4),
                         src.getName().substring(5),
                         codec.getDefaultExtension())));
