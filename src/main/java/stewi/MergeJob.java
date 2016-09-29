@@ -1,6 +1,9 @@
 package stewi;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
 import java.util.Iterator;
 
 import org.apache.hadoop.conf.Configuration;
@@ -14,17 +17,16 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
-import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.JobClient;
-import org.apache.hadoop.mapred.JobClient.TaskStatusFilter;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
-import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.mapred.TaskCompletionEvent;
+import org.apache.hadoop.mapred.TaskLog;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.util.bloom.DynamicBloomFilter;
@@ -59,13 +61,13 @@ public class MergeJob extends Configured implements Tool {
                     output.collect(key,line);
                     seen_rows.add(filterkey);
                 } else {
-                    reporter.incrCounter("mergejob","duplicate_count", 1);
                     if(!duplicated_rows.membershipTest(filterkey)) {
-                        logger.debug("Found duplicated row: " + key.get() + "\t" + line.toString());
-                        reporter.incrCounter("mergejob", "duplicate_rows_count", 1);
+                        System.out.println("Found duplicated row: " + key.get() + "\t" + line.toString());
+                        reporter.incrCounter("File Merge", "Duplicate Rows", 1);
                         duplicated_rows.add(filterkey);
                     }
-                    logger.debug("Dropping duplicate row: " + key.get() + "\t" + line.toString());
+                    System.out.println("Dropping duplicate row: " + key.get() + "\t" + line.toString());
+                    reporter.incrCounter("File Merge","Duplicates Dropped", 1);
                 }
             }
         }
@@ -144,7 +146,6 @@ public class MergeJob extends Configured implements Tool {
 
         // Submit the job, then poll for progress until the job is complete
         JobClient jc = new JobClient(job);
-        jc.setTaskOutputFilter(job, TaskStatusFilter.ALL);
 
         final RunningJob rj = jc.submitJob(job);
 
@@ -164,12 +165,25 @@ public class MergeJob extends Configured implements Tool {
 
         boolean success = jc.monitorAndPrintJob(job, rj);
 
-        if(success) {
-            for(FileStatus status: fs.listStatus(out)) {
-                
+        for(TaskCompletionEvent event: rj.getTaskCompletionEvents(0)) {
+            URL url = new URL(event.getTaskTrackerHttp() +
+                    "/tasklog?attemptid=" + event.getTaskAttemptId() +
+                    "&plaintext=true" +
+                    "&filter=" + TaskLog.LogName.STDOUT);
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(url.openConnection().getInputStream()));
+            String line = null;
+            try {
+                while((line = reader.readLine())!=null) {
+                    System.out.printf("%s: %s\n", event.getTaskAttemptId(), line);
+                }
+            } catch(IOException e) {
+                System.out.println(e.getMessage());
+            } finally {
+                reader.close();
             }
         }
-        
+
         return success ? 0 : 1;
       }
 
