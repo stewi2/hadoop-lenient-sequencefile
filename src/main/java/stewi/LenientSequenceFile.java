@@ -2168,7 +2168,7 @@ public class LenientSequenceFile {
         noBufferedValues = noBufferedRecords;
         valuesDecompressed = true;
       }
-
+/*
       System.err.printf("offset=%-8d keylenbuf=%d vallenbuf=%d keybuf=%d valbuf=%d keys=%d records=%d values=%d\n",
               blockpos,
               keyLenBuffer.getLength(),
@@ -2176,7 +2176,7 @@ public class LenientSequenceFile {
               keyBuffer.getLength(),
               valBuffer.getLength(),
               noBufferedKeys, noBufferedRecords, noBufferedValues);
-
+*/
     }
 
     /**
